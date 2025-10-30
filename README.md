@@ -1,1 +1,138 @@
 # raycast-api-dataviz
+
+Raycast extension for calling APIs and visualizing data.
+
+## コマンド
+
+```
+general purpose to call api and visualize data
+```
+
+## 実装内容
+
+### 基本機能
+- **IPベースの自動位置検出**：ユーザーの現在地を自動的に検出
+- Open-Meteo APIとの連携
+- 時系列データの取得と可視化
+- QuickChartによるグラフ生成
+- Raycast Detail viewでのデータ表示
+- 動的なタイムゾーン対応
+
+### データ取得
+- **位置情報API**: ipwho.is（認証不要、無料）
+  - ユーザーのIPアドレスから位置情報を自動取得
+  - 緯度・経度・都市名・国名・タイムゾーンを取得
+- **天気データAPI**: Open-Meteo Weather Forecast API
+  - 取得した位置情報を使用して天気データを取得
+  - 取得したタイムゾーンで正確な時刻を処理
+- **取得期間**: 今日の5時から現在時刻まで（ユーザーのタイムゾーン）
+- **取得データ**: 1時間ごとの気温データ
+
+### データ可視化
+- **グラフAPI**: QuickChart (https://quickchart.io)
+- **グラフタイプ**: 折れ線グラフ（line chart）
+- **グラフ設定**:
+  - サイズ: 800x400ピクセル
+  - スタイル: 塗りつぶし付き、滑らかな曲線
+  - 凡例、軸ラベル、タイトル表示
+
+### 表示内容
+1. **基本情報**
+   - 都市名、国名（自動検出）
+   - 期間（ユーザーのタイムゾーン）
+   - 座標情報
+   - タイムゾーン
+   - データ件数
+
+2. **グラフ表示**
+   - QuickChartで生成された気温推移の折れ線グラフ
+   - タイトル: 「[都市名], [国名] の気温推移（今日）」
+   - X軸: 時刻（05:00 ～ 現在時刻）
+   - Y軸: 気温（°C）
+
+3. **データテーブル**
+   - 時刻と気温の詳細な一覧
+
+### 技術スタック
+- TypeScript
+- React
+- @raycast/api
+- @raycast/utils (useFetch hook)
+- QuickChart (Chart.js image API)
+- ipwho.is (IP Geolocation API)
+
+### タイムゾーン対応
+- IPベースの位置検出でタイムゾーンを自動取得
+- `toLocaleDateString()` / `toLocaleTimeString()` を使用して取得したタイムゾーンで時刻を処理
+- マシンのタイムゾーンに依存しない実装
+- 世界中のどこから実行してもユーザーの現在地のデータを正確に取得・表示
+
+## 使い方
+
+1. 開発モードで起動
+```bash
+npm install
+npm run dev
+```
+
+2. Raycastで「general purpose to call api and visualize data」を検索して実行
+
+## API仕様
+
+### ipwho.is API（位置情報）
+- **エンドポイント**: `https://ipwho.is/`
+- **認証**: 不要
+- **料金**: 無料
+- **取得データ**:
+  - `latitude`, `longitude`: 緯度・経度
+  - `city`: 都市名
+  - `country`: 国名
+  - `timezone.id`: タイムゾーンID（例: Asia/Tokyo）
+- **ドキュメント**: https://ipwho.is/
+
+### Open-Meteo API（天気データ）
+- **エンドポイント**: `https://api.open-meteo.com/v1/forecast`
+- **認証**: 不要
+- **料金**: 無料（非商用利用）
+- **パラメータ**:
+  - `latitude`, `longitude`: 地理座標（ipwho.isから取得）
+  - `hourly`: 取得する気象データ（temperature_2m）
+  - `timezone`: タイムゾーン指定（ipwho.isから取得）
+  - `start_hour`, `end_hour`: データ取得期間（ISO8601形式）
+- **ドキュメント**: https://open-meteo.com/en/docs
+
+### QuickChart API（グラフ生成）
+- **エンドポイント**: `https://quickchart.io/chart`
+- **認証**: 不要
+- **料金**: 無料
+- **パラメータ**:
+  - `chart`: Chart.js設定（JSON形式、URLエンコード）
+  - `width`, `height`: 画像サイズ（ピクセル）
+- **ドキュメント**: https://quickchart.io/documentation/
+
+## 実装の特徴
+
+### 完全自動化
+- **ユーザー入力不要**: IPアドレスから自動的に位置情報を検出
+- **設定不要**: 座標やタイムゾーンの手動設定が不要
+- **認証不要**: すべてのAPIが認証・APIキー不要で使用可能
+
+### 汎用性
+- **位置情報の自動検出**: 世界中のどこから実行してもユーザーの現在地を表示
+- **タイムゾーン自動対応**: ユーザーの現在地のタイムゾーンを自動的に使用
+- **国際対応**: 世界中どこでも正確に動作
+
+### 外部依存なし
+- QuickChartはURL経由で画像を生成
+- 追加のnpmパッケージ不要
+- 無料APIのみ使用（商用利用でない限り）
+
+### リアルタイム
+- コマンド実行時に最新のデータを取得
+- キャッシュなし、常に最新の気温データを表示
+- 位置情報も毎回取得（移動先でも正確）
+
+### エラーハンドリング
+- **フレンドリーなエラーメッセージ**: 無料APIのレート制限を想定した分かりやすいメッセージ
+- **リトライ推奨**: エラー時は「またアクセスしてみてください！」と表示
+- **ヒント提供**: VPNの影響など、具体的な対処方法を提示

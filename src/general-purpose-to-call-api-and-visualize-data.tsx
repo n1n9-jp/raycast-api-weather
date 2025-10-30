@@ -1,64 +1,204 @@
 import { Detail } from "@raycast/api";
 import { useFetch } from "@raycast/utils";
 
-// 東京の座標をデフォルトで使用
-const TOKYO_LATITUDE = 35.6762;
-const TOKYO_LONGITUDE = 139.6503;
+interface LocationResponse {
+  success: boolean;
+  latitude: number;
+  longitude: number;
+  city: string;
+  country: string;
+  timezone: {
+    id: string;
+  };
+}
 
 interface WeatherResponse {
   latitude: number;
   longitude: number;
-  current: {
-    time: string;
-    temperature_2m: number;
-    relative_humidity_2m: number;
-    weather_code: number;
-    wind_speed_10m: number;
+  timezone: string;
+  hourly: {
+    time: string[];
+    temperature_2m: number[];
   };
-  current_units: {
+  hourly_units: {
+    time: string;
     temperature_2m: string;
-    relative_humidity_2m: string;
-    wind_speed_10m: string;
   };
 }
 
-export default function Command() {
-  const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${TOKYO_LATITUDE}&longitude=${TOKYO_LONGITUDE}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m`;
+function WeatherDisplay({
+  latitude,
+  longitude,
+  city,
+  country,
+  timezoneId,
+}: {
+  latitude: number;
+  longitude: number;
+  city: string;
+  country: string;
+  timezoneId: string;
+}) {
+  const now = new Date();
 
-  const { data, isLoading, error } = useFetch<WeatherResponse>(apiUrl, {
-    parseResponse: async (response) => {
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      return await response.json();
-    },
-  });
+  // 取得したタイムゾーンで今日の0時を取得
+  const dateString = now.toLocaleDateString("en-CA", {
+    timeZone: timezoneId,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }); // YYYY-MM-DD
+
+  // 取得したタイムゾーンで現在時刻を取得（HH:mm形式）
+  const timeString = now.toLocaleTimeString("en-GB", {
+    timeZone: timezoneId,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }); // HH:mm
+
+  // 今日の5時
+  const startTime = `${dateString}T05:00`;
+  // 現在時刻
+  const endTime = `${dateString}T${timeString}`;
+
+  const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m&timezone=${timezoneId}&start_hour=${startTime}&end_hour=${endTime}`;
+
+  const { data, isLoading, error } = useFetch<WeatherResponse>(apiUrl);
 
   if (error) {
     return (
       <Detail
-        markdown={`# エラー\n\nデータの取得に失敗しました\n\n**エラー内容**: ${error.message}\n\n**API URL**: ${apiUrl}\n\n**対処方法**:\n- インターネット接続を確認してください\n- しばらく待ってから再度お試しください`}
+        markdown={`# データ取得中にエラーが発生しました\n\n無料APIを使っているため、時々アクセスが混み合うことがあります。\n\n**またアクセスしてみてください！** 🔄\n\n---\n\n💡 **ヒント**\n- 数秒待ってから再実行してみてください\n- それでもダメな場合は、少し時間をおいてから試してみてください\n\n*無料APIのため、レート制限がかかることがあります*`}
       />
     );
   }
 
-  if (!data) {
+  if (!data || !data.hourly) {
     return <Detail isLoading={true} />;
   }
 
+  // 時刻ラベルを整形（時刻部分のみ表示）
+  // APIから返ってくる時刻は既に日本時間なので、そのまま抽出
+  const labels = data.hourly.time.map((time) => {
+    // ISO8601形式の文字列から時刻部分を抽出（例: "2025-10-30T15:00" -> "15:00"）
+    return time.split("T")[1];
+  });
+
+  // QuickChart用のChart.js設定
+  const chartConfig = {
+    type: "line",
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: `気温 (${data.hourly_units.temperature_2m})`,
+          data: data.hourly.temperature_2m,
+          borderColor: "rgb(75, 192, 192)",
+          backgroundColor: "rgba(75, 192, 192, 0.2)",
+          tension: 0.4,
+          fill: true,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        title: {
+          display: true,
+          text: `${city}, ${country} の気温推移（今日）`,
+          font: {
+            size: 16,
+          },
+        },
+        legend: {
+          display: true,
+          position: "top",
+        },
+      },
+      scales: {
+        y: {
+          beginAtZero: false,
+          title: {
+            display: true,
+            text: `気温 (${data.hourly_units.temperature_2m})`,
+          },
+        },
+        x: {
+          title: {
+            display: true,
+            text: "時刻",
+          },
+        },
+      },
+    },
+  };
+
+  // QuickChart URLを生成
+  const chartUrl = `https://quickchart.io/chart?width=800&height=400&chart=${encodeURIComponent(
+    JSON.stringify(chartConfig)
+  )}`;
+
+  // 時系列データをテーブル形式で表示
+  const timeSeriesData = data.hourly.time
+    .map((time, index) => {
+      const temp = data.hourly.temperature_2m[index];
+      return `| ${time} | ${temp}${data.hourly_units.temperature_2m} |`;
+    })
+    .join("\n");
+
   const markdown = `
-# 東京の現在の天気
+# ${city}, ${country} の気温推移（今日）
 
-## 基本情報
-- **時刻**: ${data.current.time}
-- **座標**: 緯度 ${data.latitude}, 経度 ${data.longitude}
+**期間**: ${startTime} 〜 ${endTime}
+**場所**: ${city}, ${country}
+**座標**: 緯度 ${data.latitude}, 経度 ${data.longitude}
+**タイムゾーン**: ${data.timezone}
+**データ数**: ${data.hourly.time.length}件
 
-## 気象データ
-- **気温**: ${data.current.temperature_2m}${data.current_units.temperature_2m}
-- **湿度**: ${data.current.relative_humidity_2m}${data.current_units.relative_humidity_2m}
-- **風速**: ${data.current.wind_speed_10m}${data.current_units.wind_speed_10m}
-- **天気コード**: ${data.current.weather_code}
+## グラフ
+
+![気温推移グラフ](${chartUrl})
+
+## 時系列データ
+
+| 時刻 | 気温 |
+|------|------|
+${timeSeriesData}
 `;
 
   return <Detail isLoading={isLoading} markdown={markdown} />;
+}
+
+export default function Command() {
+  // IPベースで位置情報を取得
+  const {
+    data: locationData,
+    isLoading: locationLoading,
+    error: locationError,
+  } = useFetch<LocationResponse>("https://ipwho.is/");
+
+  // 位置情報の取得を待つ
+  if (locationLoading) {
+    return <Detail isLoading={true} markdown="位置情報を取得中..." />;
+  }
+
+  if (locationError || !locationData || !locationData.success) {
+    return (
+      <Detail
+        markdown={`# 位置情報の取得中にエラーが発生しました\n\n無料APIを使っているため、時々アクセスが混み合うことがあります。\n\n**もう一度試してみてください！** 🔄\n\n---\n\n💡 **ヒント**\n- 数秒待ってから再実行してみてください\n- VPNを使用している場合、一時的にオフにしてみてください\n\n*IPベースの位置検出のため、VPN経由だと位置が正確でない場合があります*`}
+      />
+    );
+  }
+
+  // 位置情報が取得できたら、WeatherDisplayコンポーネントを表示
+  return (
+    <WeatherDisplay
+      latitude={locationData.latitude}
+      longitude={locationData.longitude}
+      city={locationData.city}
+      country={locationData.country}
+      timezoneId={locationData.timezone.id}
+    />
+  );
 }
