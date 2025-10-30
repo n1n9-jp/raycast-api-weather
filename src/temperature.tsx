@@ -93,6 +93,12 @@ function WeatherDisplay({
     day: "numeric",
   });
 
+  // Y軸の範囲を動的に設定
+  const minTemp = Math.min(...data.hourly.temperature_2m);
+  const maxTemp = Math.max(...data.hourly.temperature_2m);
+  const yAxisMin = minTemp < 0 ? Math.floor(minTemp) : 0;
+  const yAxisMax = maxTemp > 40 ? Math.ceil(maxTemp) + 2 : 40;
+
   // QuickChart用のChart.js設定
   const chartConfig = {
     type: "line",
@@ -127,7 +133,8 @@ function WeatherDisplay({
               display: false,
             },
             ticks: {
-              beginAtZero: false,
+              suggestedMin: yAxisMin, // Y軸の最小値を動的に設定
+              suggestedMax: yAxisMax, // Y軸の最大値を動的に設定
               fontStyle: "bold",
               fontFamily: "Helvetica",
             },
