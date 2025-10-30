@@ -1,5 +1,6 @@
-import { Detail, ActionPanel, Action } from "@raycast/api";
+import { Detail, ActionPanel, Action, LocalStorage } from "@raycast/api";
 import { useFetch } from "@raycast/utils";
+import { useState, useEffect } from "react";
 
 interface LocationResponse {
   success: boolean;
@@ -39,34 +40,50 @@ function WeatherDisplay({
   country: string;
   timezoneId: string;
 }) {
+  const [weather, setWeather] = useState<WeatherResponse | null>(null);
+  const [isStale, setIsStale] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
   const now = new Date();
-
-  // 取得したタイムゾーンで今日の0時を取得
-  const dateString = now.toLocaleDateString("en-CA", {
-    timeZone: timezoneId,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }); // YYYY-MM-DD
-
-  // 取得したタイムゾーンで現在時刻を取得（HH:mm形式）
-  const timeString = now.toLocaleTimeString("en-GB", {
-    timeZone: timezoneId,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }); // HH:mm
-
-  // 今日の5時
+  const dateString = now.toLocaleDateString("en-CA", { timeZone: timezoneId, year: "numeric", month: "2-digit", day: "2-digit" });
+  const timeString = now.toLocaleTimeString("en-GB", { timeZone: timezoneId, hour: "2-digit", minute: "2-digit", hour12: false });
   const startTime = `${dateString}T05:00`;
-  // 現在時刻
   const endTime = `${dateString}T${timeString}`;
-
   const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m&timezone=${timezoneId}&start_hour=${startTime}&end_hour=${endTime}`;
 
-  const { data, isLoading, error } = useFetch<WeatherResponse>(apiUrl);
+  useEffect(() => {
+    async function fetchData() {
+      setIsLoading(true);
+      try {
+        const response = await fetch(apiUrl);
+        if (!response.ok) {
+          throw new Error(response.statusText);
+        }
+        const data: WeatherResponse = await response.json();
+        setWeather(data);
+        await LocalStorage.setItem("cachedWeatherData", JSON.stringify(data));
+        setIsStale(false);
+        setError(null);
+      } catch (e) {
+        setError(e as Error);
+        const cachedData = await LocalStorage.getItem<string>("cachedWeatherData");
+        if (cachedData) {
+          setWeather(JSON.parse(cachedData));
+          setIsStale(true);
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchData();
+  }, [apiUrl]);
 
-  if (error) {
+  if (isLoading && !weather) {
+    return <Detail isLoading={true} />;
+  }
+
+  if (error && !weather) {
     return (
       <Detail
         markdown={`# データ取得中にエラーが発生しました\n\n無料APIを使っているため、時々アクセスが混み合うことがあります。\n\n**またアクセスしてみてください！** 🔄\n\n---\n\n💡 **ヒント**\n- 数秒待ってから再実行してみてください\n- それでもダメな場合は、少し時間をおいてから試してみてください\n\n*無料APIのため、レート制限がかかることがあります*`}
@@ -74,32 +91,20 @@ function WeatherDisplay({
     );
   }
 
-  if (!data || !data.hourly) {
+  if (!weather || !weather.hourly) {
     return <Detail isLoading={true} />;
   }
 
-  // 時刻ラベルを整形（時刻部分のみ表示）
-  // APIから返ってくる時刻は既に日本時間なので、そのまま抽出
-  const labels = data.hourly.time.map((time) => {
-    // ISO8601形式の文字列から時刻部分を抽出（例: "2025-10-30T15:00" -> "15:00"）
-    return time.split("T")[1];
-  });
+  const data = weather; // Use the state data
 
-  // 日付を整形（例: October 30, 2025）
-  const formattedDate = now.toLocaleDateString("en-US", {
-    timeZone: timezoneId,
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  const labels = data.hourly.time.map((time) => time.split("T")[1]);
+  const formattedDate = now.toLocaleDateString("en-US", { timeZone: timezoneId, year: "numeric", month: "long", day: "numeric" });
 
-  // Y軸の範囲を動的に設定
   const minTemp = Math.min(...data.hourly.temperature_2m);
   const maxTemp = Math.max(...data.hourly.temperature_2m);
   const yAxisMin = minTemp < 0 ? Math.floor(minTemp) : 0;
   const yAxisMax = maxTemp > 40 ? Math.ceil(maxTemp) + 2 : 40;
 
-  // QuickChart用のChart.js設定
   const chartConfig = {
     type: "line",
     data: {
@@ -176,15 +181,8 @@ function WeatherDisplay({
     },
   };
 
-  // QuickChart URLを生成
-  const chartUrl = `https://quickchart.io/chart?w=800&h=400&bkg=white&c=${encodeURIComponent(
-    JSON.stringify(chartConfig)
-  )}`;
+  const chartUrl = `https://quickchart.io/chart?w=800&h=400&bkg=white&c=${encodeURIComponent(JSON.stringify(chartConfig))}`;
 
-  // デバッグ: タイトルを確認
-  console.log("Chart title:", `${city}, ${country} - ${formattedDate}`);
-
-  // 時系列データをテーブル形式で表示
   const timeSeriesData = data.hourly.time
     .map((time, index) => {
       const temp = data.hourly.temperature_2m[index];
@@ -192,29 +190,13 @@ function WeatherDisplay({
     })
     .join("\n");
 
-  const markdown = `
-# ${city}, ${country} の気温推移（今日）
+  const staleMessage = isStale ? `\n\n> ⚠️ **更新に失敗しました。前回取得したデータを表示しています。**\n\n` : "";
 
-**期間**: ${startTime} 〜 ${endTime}
-**場所**: ${city}, ${country}
-**座標**: 緯度 ${data.latitude}, 経度 ${data.longitude}
-**タイムゾーン**: ${data.timezone}
-**データ数**: ${data.hourly.time.length}件
-
-## グラフ
-
-![気温推移グラフ](${chartUrl})
-
-## 時系列データ
-
-| 時刻 | 気温 |
-|------|------|
-${timeSeriesData}
-`;
+  const markdown = `${staleMessage}# ${city}, ${country} の気温推移（今日）\n\n**期間**: ${startTime} 〜 ${endTime}\n**場所**: ${city}, ${country}\n**座標**: 緯度 ${data.latitude}, 経度 ${data.longitude}\n**タイムゾーン**: ${data.timezone}\n**データ数**: ${data.hourly.time.length}件\n\n## グラフ\n\n![気温推移グラフ](${chartUrl})\n\n## 時系列データ\n\n| 時刻 | 気温 |\n|------|------|\n${timeSeriesData}`;
 
   return (
     <Detail
-      isLoading={isLoading}
+      isLoading={isLoading && !weather}
       markdown={markdown}
       actions={
         <ActionPanel>
