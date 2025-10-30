@@ -102,8 +102,8 @@ function WeatherDisplay({
         {
           label: `気温 (${data.hourly_units.temperature_2m})`,
           data: data.hourly.temperature_2m,
-          borderColor: "rgb(75, 192, 192)",
-          backgroundColor: "rgba(75, 192, 192, 0.2)",
+          borderColor: "rgba(135, 206, 250, 1)", // 明るい青色
+          backgroundColor: "rgba(135, 206, 250, 0.3)", // 透明度のある塗りつぶし
           tension: 0.4,
           fill: true,
         },
@@ -113,38 +113,64 @@ function WeatherDisplay({
       title: {
         display: true,
         text: `${city}, ${country} - ${formattedDate}`,
-        fontSize: 18,
+        fontSize: 20,
+        fontColor: "#333",
+        fontFamily: "Helvetica",
       },
       legend: {
-        display: true,
-        position: "top",
+        display: false, // 凡例を非表示
       },
       scales: {
         yAxes: [
           {
             scaleLabel: {
-              display: true,
-              labelString: `気温 (${data.hourly_units.temperature_2m})`,
+              display: false,
             },
             ticks: {
               beginAtZero: false,
+              fontStyle: "bold",
+              fontFamily: "Helvetica",
+            },
+            gridLines: {
+              color: "rgba(0, 0, 0, 0.05)",
             },
           },
         ],
         xAxes: [
           {
             scaleLabel: {
-              display: true,
-              labelString: "時刻",
+              display: false,
+            },
+            ticks: {
+              fontStyle: "bold",
+              fontFamily: "Helvetica",
+            },
+            gridLines: {
+              display: false,
             },
           },
         ],
+      },
+      plugins: {
+        // データラベルプラグインの設定
+        datalabels: {
+          display: true,
+          anchor: "end",
+          align: "top",
+          formatter: (value: number) => `${value}°`,
+          font: {
+            weight: "bold",
+            size: 14,
+            family: "Helvetica",
+          },
+          color: "#555",
+        },
       },
     },
   };
 
   // QuickChart URLを生成
-  const chartUrl = `https://quickchart.io/chart?width=800&height=400&chart=${encodeURIComponent(
+  const chartUrl = `https://quickchart.io/chart?w=800&h=400&bkg=white&c=${encodeURIComponent(
     JSON.stringify(chartConfig)
   )}`;
 
