@@ -1,4 +1,4 @@
-import { Detail } from "@raycast/api";
+import { Detail, ActionPanel, Action } from "@raycast/api";
 import { useFetch } from "@raycast/utils";
 
 interface LocationResponse {
@@ -85,6 +85,14 @@ function WeatherDisplay({
     return time.split("T")[1];
   });
 
+  // 日付を整形（例: October 30, 2025）
+  const formattedDate = now.toLocaleDateString("en-US", {
+    timeZone: timezoneId,
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
   // QuickChart用のChart.js設定
   const chartConfig = {
     type: "line",
@@ -102,34 +110,35 @@ function WeatherDisplay({
       ],
     },
     options: {
-      responsive: true,
-      plugins: {
-        title: {
-          display: true,
-          text: `${city}, ${country} の気温推移（今日）`,
-          font: {
-            size: 16,
-          },
-        },
-        legend: {
-          display: true,
-          position: "top",
-        },
+      title: {
+        display: true,
+        text: `${city}, ${country} - ${formattedDate}`,
+        fontSize: 18,
+      },
+      legend: {
+        display: true,
+        position: "top",
       },
       scales: {
-        y: {
-          beginAtZero: false,
-          title: {
-            display: true,
-            text: `気温 (${data.hourly_units.temperature_2m})`,
+        yAxes: [
+          {
+            scaleLabel: {
+              display: true,
+              labelString: `気温 (${data.hourly_units.temperature_2m})`,
+            },
+            ticks: {
+              beginAtZero: false,
+            },
           },
-        },
-        x: {
-          title: {
-            display: true,
-            text: "時刻",
+        ],
+        xAxes: [
+          {
+            scaleLabel: {
+              display: true,
+              labelString: "時刻",
+            },
           },
-        },
+        ],
       },
     },
   };
@@ -138,6 +147,9 @@ function WeatherDisplay({
   const chartUrl = `https://quickchart.io/chart?width=800&height=400&chart=${encodeURIComponent(
     JSON.stringify(chartConfig)
   )}`;
+
+  // デバッグ: タイトルを確認
+  console.log("Chart title:", `${city}, ${country} - ${formattedDate}`);
 
   // 時系列データをテーブル形式で表示
   const timeSeriesData = data.hourly.time
@@ -167,7 +179,22 @@ function WeatherDisplay({
 ${timeSeriesData}
 `;
 
-  return <Detail isLoading={isLoading} markdown={markdown} />;
+  return (
+    <Detail
+      isLoading={isLoading}
+      markdown={markdown}
+      actions={
+        <ActionPanel>
+          <Action.OpenInBrowser title="グラフを新しいタブで開く" url={chartUrl} />
+          <Action.CopyToClipboard
+            title="グラフURLをコピー"
+            content={chartUrl}
+            shortcut={{ modifiers: ["cmd"], key: "c" }}
+          />
+        </ActionPanel>
+      }
+    />
+  );
 }
 
 export default function Command() {
