@@ -12,9 +12,9 @@
   "license": "MIT",
   "commands": [
     {
-      "name": "general-purpose-to-call-api-and-visualize-data",
-      "title": "general purpose to call api and visualize data",
-      "description": "",
+      "name": "temperature",
+      "title": "気温",
+      "description": "現在地の気温推移をグラフで表示",
       "mode": "view"
     }
   ],

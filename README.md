@@ -5,8 +5,10 @@ Raycast extension for calling APIs and visualizing data.
 ## コマンド
 
 ```
-general purpose to call api and visualize data
+気温
 ```
+
+現在地の気温推移をグラフで表示します。
 
 ## 実装内容
 
@@ -46,12 +48,17 @@ general purpose to call api and visualize data
 
 2. **グラフ表示**
    - QuickChartで生成された気温推移の折れ線グラフ
-   - タイトル: 「[都市名], [国名] の気温推移（今日）」
+   - タイトル: 「[都市名], [国名] - [日付]」（例: Bunkyo City, Japan - October 30, 2025）
    - X軸: 時刻（05:00 ～ 現在時刻）
    - Y軸: 気温（°C）
+   - グラフには都市名、国名、日付が自動的に表示
 
 3. **データテーブル**
    - 時刻と気温の詳細な一覧
+
+### アクション機能
+- **グラフを新しいタブで開く**: ブラウザでグラフ画像を開いて保存可能
+- **グラフURLをコピー** (`⌘ + C`): 画像URLをクリップボードにコピー
 
 ### 技術スタック
 - TypeScript
@@ -69,13 +76,23 @@ general purpose to call api and visualize data
 
 ## 使い方
 
+### セットアップ
 1. 開発モードで起動
 ```bash
 npm install
 npm run dev
 ```
 
-2. Raycastで「general purpose to call api and visualize data」を検索して実行
+2. Raycastで「**気温**」を検索して実行
+
+### グラフのダウンロード
+1. コマンド実行後、`⌘ + K` でアクションメニューを開く
+2. **方法1**: 「グラフを新しいタブで開く」を選択
+   - ブラウザでグラフが開く
+   - 右クリック → 「名前を付けて画像を保存」
+3. **方法2**: `⌘ + C` でグラフURLをコピー
+   - ブラウザのアドレスバーに貼り付けて画像を表示
+   - 右クリックで保存
 
 ## API仕様
 
