@@ -1,4 +1,4 @@
-# raycast-api-dataviz
+# raycast-api-weather
 
 Raycast extension for calling APIs and visualizing data.
 
